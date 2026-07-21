@@ -1,0 +1,9 @@
+[package]
+name = "mpi-rma"
+version = "0.1.0"
+edition = "2024"
+description = "Typed one-sided communication (RMA) on top of rsmpi's ffi layer."
+readme = "README.md"
+
+[dependencies]
+mpi = "0.8"
