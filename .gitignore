@@ -1,1 +1,3 @@
-/target
+data/*.tsv
+data/*.staging
+__pycache__/

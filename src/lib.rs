@@ -1,30 +1,51 @@
-//! Safe, typed MPI one-sided communication on top of rsmpi.
+//! Typed, safe MPI one-sided communication (RMA) for Rust, on top of
+//! [rsmpi](https://docs.rs/mpi).
 //!
-//! rsmpi does not expose RMA windows. This crate contains the raw RMA calls
-//! and extends every rsmpi communicator through [`CommunicatorRmaExt`].
+//! rsmpi does not expose RMA windows. This crate contains the raw RMA calls,
+//! extends every rsmpi communicator through [`CommunicatorRmaExt`], and builds
+//! fixed-slot [`Ring`] transport on those windows.
+//!
+//! [`Ring::safe`] provides backpressure with a cumulative-acknowledgement
+//! gate. [`Ring::raw`] never blocks and reports overwritten messages instead.
+//! Polling reads local memory; each safe [`Ring::ack`] call uses one atomic
+//! MPI operation.
 //!
 //! ```no_run
-//! use mpi_rma::CommunicatorRmaExt;
+//! use mpi::topology::Communicator;
+//! use mpi_rma::Ring;
 //!
-//! # let universe = mpi::initialize().unwrap();
+//! # let (universe, _) = mpi::initialize_with_threading(mpi::Threading::Multiple).unwrap();
 //! let world = universe.world();
-//! let win = world.allocate_window::<u64>(1024).unwrap();
+//! // One lane from rank 0 to rank 1: 8 slots of 64 KiB each.
+//! let ring = Ring::safe(&world, &[(0, 1, 8, 64 * 1024)]).unwrap();
+//! if world.rank() == 0 {
+//!     ring.send(1, b"hello").unwrap();
+//! } else if world.rank() == 1 {
+//!     'receive: loop {
+//!         for message in ring.poll().unwrap() {
+//!             ring.ack(message.origin, message.sequence).unwrap();
+//!             break 'receive;
+//!         }
+//!         std::thread::yield_now();
+//!     }
+//! }
+//! ring.close().unwrap();
 //! ```
 //!
-//! Derived target layouts describe fixed memory maps. They do not execute
-//! target-side code: MPI cannot insert into `BTreeMap`, follow pointers,
-//! allocate nodes, compare keys, or preserve Rust collection invariants.
+//! See `design.md` for the slot layout, sequencing rules, and the
+//! acknowledge-gating model behind the ring transport, and `BENCHMARKS.md`
+//! for measured throughput and latency against MPI point-to-point.
 
 mod error;
-mod layout;
+mod ring;
 mod window;
 
 pub use error::Error;
-pub use layout::Indexed;
+pub use ring::{Message, Ring};
 pub use window::{CommunicatorRmaExt, MemoryModel, RmaElement, Window};
 
 /// rsmpi-style trait prelude. Importing this extends the original
-/// communicator types; no communicator wrapper is involved.
+/// communicator types in place; no communicator wrapper is involved.
 pub mod traits {
     pub use crate::CommunicatorRmaExt;
 }

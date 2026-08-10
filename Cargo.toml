@@ -2,8 +2,39 @@
 name = "mpi-rma"
 version = "0.1.0"
 edition = "2024"
-description = "Typed one-sided communication (RMA) on top of rsmpi's ffi layer."
+rust-version = "1.85"
+description = "Typed one-sided communication (RMA) and fixed-slot ring transport on top of rsmpi."
 readme = "README.md"
+license = "MIT"
+authors = ["pkd <pkd@unsuspicious.org>"]
+repository = "https://github.com/pkd/mpi-rma"
+documentation = "https://docs.rs/mpi-rma"
+keywords = ["mpi", "rma", "one-sided", "hpc", "transport"]
+categories = ["concurrency", "network-programming", "science"]
+# The raw measurement TSVs are reproducible from scripts/bench.sh and are not
+# worth shipping; the rendered figures are, because BENCHMARKS.md embeds them.
+exclude = ["data/*.tsv"]
 
 [dependencies]
 mpi = "0.8"
+crc32fast = "1"
+
+[[example]]
+name = "compare"
+path = "examples/compare.rs"
+
+[[example]]
+name = "soak"
+path = "examples/soak.rs"
+
+[[example]]
+name = "test_layout"
+path = "examples/test_layout.rs"
+
+[[example]]
+name = "test_ring"
+path = "examples/test_ring.rs"
+
+[[example]]
+name = "test_window"
+path = "examples/test_window.rs"
