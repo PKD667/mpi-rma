@@ -1,6 +1,6 @@
 # mpi-rma
 
-[![CI](https://github.com/pkd/mpi-rma/actions/workflows/ci.yml/badge.svg)](https://github.com/pkd/mpi-rma/actions/workflows/ci.yml)
+[![CI](https://github.com/PKD667/mpi-rma/actions/workflows/ci.yml/badge.svg)](https://github.com/PKD667/mpi-rma/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/mpi-rma.svg)](https://crates.io/crates/mpi-rma)
 [![docs.rs](https://img.shields.io/docsrs/mpi-rma)](https://docs.rs/mpi-rma)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
