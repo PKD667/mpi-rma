@@ -49,16 +49,16 @@ struct Outgoing {
     sent: u64,
     /// Cumulative acknowledgement, as last read from the counter window.
     acked: u64,
-    /// Slot-sized scratch for the image, reused across sends. 
+    /// Slot-sized scratch for the image, reused across sends.
     /// Only the header, the payload and the guard are written.
-    /// The padding between payload and guard is never zeroed because nothing reads it. 
+    /// The padding between payload and guard is never zeroed because nothing reads it.
     /// The checksum covers the declared length only, and `length` bounds what a receiver copies out.
     image: Vec<u8>,
 }
 
 /// Sparse directed message rings packed into collective RMA windows.
 ///
-/// Safe to share between threads on the same process. 
+/// Safe to share between threads on the same process.
 /// Lifetime is the underlying MPI window
 /// To drop the ring use [`Self::close`] (collective) or let the destructor run symmetrically on every rank.
 pub struct Ring {
