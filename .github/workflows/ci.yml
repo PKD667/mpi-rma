@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OpenMPI
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libopenmpi-dev openmpi-bin python3-matplotlib
+      - uses: dtolnay/rust-toolchain@1.85
+        with:
+          components: rustfmt, clippy
+      - name: Lint
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: scripts/test.sh
+      - name: Benchmark and report smoke test
+        run: |
+          scripts/bench.sh 2 1 "$RUNNER_TEMP/bench"
+          python3 scripts/figures.py "$RUNNER_TEMP/bench"
+          test -s "$RUNNER_TEMP/bench/compare.tsv"
+          test -s "$RUNNER_TEMP/bench/loss.tsv"
+          test -s "$RUNNER_TEMP/bench/scale.tsv"
+          test -s "$RUNNER_TEMP/bench/summary.tsv"
+          test -s "$RUNNER_TEMP/bench/loss-summary.tsv"
+          test -s "$RUNNER_TEMP/bench/tables.md"
+          test -s "$RUNNER_TEMP/bench/figures/compare.png"
+          test -s "$RUNNER_TEMP/bench/figures/raw.png"
+          test -s "$RUNNER_TEMP/bench/figures/loss.png"
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-report
+          path: ${{ runner.temp }}/bench
+          retention-days: 7

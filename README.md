@@ -1,9 +1,16 @@
 # mpi-rma
 
+[![CI](https://github.com/pkd/mpi-rma/actions/workflows/ci.yml/badge.svg)](https://github.com/pkd/mpi-rma/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/mpi-rma.svg)](https://crates.io/crates/mpi-rma)
+[![docs.rs](https://img.shields.io/docsrs/mpi-rma)](https://docs.rs/mpi-rma)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Typed, safe MPI one-sided communication (RMA) for Rust, on top of
 [rsmpi](https://docs.rs/mpi). It exposes the raw RMA calls rsmpi hides and
 ships a fixed-slot ring transport for message-passing patterns that plain
 point-to-point does badly.
+
+![RMA ring throughput and latency](data/figures/compare.png)
 
 Perform almost 4x faster than Point-to-Point MPI with small payloads and in a noisy environnement. 
 
