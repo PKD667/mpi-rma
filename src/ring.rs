@@ -605,10 +605,12 @@ impl Ring {
             if self
                 .probe(lane, position)?
                 .is_some_and(|sequence| sequence > seen)
-                && let Some(frame) = self.frame(lane, position)?
-                && frame.sequence > seen
             {
-                frames.push(frame);
+                if let Some(frame) = self.frame(lane, position)? {
+                    if frame.sequence > seen {
+                        frames.push(frame);
+                    }
+                }
             }
         }
         frames.sort_unstable_by_key(|frame| frame.sequence);
