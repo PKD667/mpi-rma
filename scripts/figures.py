@@ -424,7 +424,6 @@ def loss_figure(rows, out):
             if cells[(depth, p, 0)]
         }
         order = sorted(points)
-        ys = [points[x][0] for x in order]
         ends.append(
             (*series(ax, order, points, colour), f"depth {depth}", colour)
         )

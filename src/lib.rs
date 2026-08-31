@@ -5,6 +5,10 @@
 //! extends every rsmpi communicator through [`CommunicatorRmaExt`], and builds
 //! fixed-slot [`Ring`] transport on those windows.
 //!
+//! [`SharedWindow`] is the deployment half: it publishes a byte buffer into one
+//! shared-memory segment per node and maps it read-only on every rank, which is
+//! how a sink hands every worker the same bytes without a per-rank copy.
+//!
 //! [`Ring::safe`] provides backpressure with a cumulative-acknowledgement
 //! gate. [`Ring::raw`] never blocks and reports overwritten messages instead.
 //! Polling reads local memory; each safe [`Ring::ack`] call uses one atomic
@@ -42,7 +46,7 @@ mod window;
 
 pub use error::Error;
 pub use ring::{Message, Ring};
-pub use window::{CommunicatorRmaExt, MemoryModel, RmaElement, Window};
+pub use window::{CommunicatorRmaExt, MemoryModel, RmaElement, SharedWindow, Window};
 
 /// rsmpi-style trait prelude. Importing this extends the original
 /// communicator types in place; no communicator wrapper is involved.

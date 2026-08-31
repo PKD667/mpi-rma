@@ -5,7 +5,7 @@ use mpi::collective::CommunicatorCollectives;
 use mpi::datatype::Equivalence;
 use mpi::ffi;
 use mpi::raw::AsRaw;
-use mpi::topology::{Communicator, Rank};
+use mpi::topology::{Communicator, Rank, SimpleCommunicator};
 
 use crate::Error;
 
@@ -396,5 +396,201 @@ impl<T: RmaElement> Drop for Window<T> {
         // MPI_Win_free is collective. Well-structured MPI programs drop
         // windows symmetrically; explicit `close` makes that boundary visible.
         let _ = self.finish();
+    }
+}
+
+/// One read-only shared-memory segment per node, assembled from one slice per
+/// node-local rank. MPI places the slices consecutively when
+/// `alloc_shared_noncontig` is not set, so every rank can expose the node's
+/// whole segment as one flat slice without a leader allocation.
+pub struct SharedWindow {
+    win: ffi::MPI_Win,
+    base: *const u8,
+    len: usize,
+    _comm: SimpleCommunicator,
+}
+
+// SAFETY: the segment bytes are written once, inside `publish`, before the
+// node barrier, and nothing in this crate ever exposes a mutable view of
+// them, so concurrent reads through `get` observe memory nobody writes.
+unsafe impl Send for SharedWindow {}
+unsafe impl Sync for SharedWindow {}
+
+impl SharedWindow {
+    /// Publish each rank's slice into one flat shared segment per node.
+    ///
+    /// `mine.len()` is this rank's allocation and `total` is the complete
+    /// segment length. Every rank on a node contributes one disjoint slice.
+    pub fn publish<C: Communicator + ?Sized>(
+        participants: &C,
+        mine: &[u8],
+        total: usize,
+    ) -> Result<Self, Error> {
+        if participants.test_inter() {
+            return Err(Error::Intercommunicator);
+        }
+        let threading = mpi::environment::threading_support();
+        if threading != mpi::Threading::Multiple {
+            return Err(Error::Threading(threading));
+        }
+        let comm = participants.split_shared(0);
+        let node_size = usize::try_from(comm.size()).map_err(|_| Error::SizeOverflow)?;
+        let node_rank = usize::try_from(comm.rank()).map_err(|_| Error::SizeOverflow)?;
+        let local = u64::try_from(mine.len()).map_err(|_| Error::SizeOverflow)?;
+        let mut lengths = vec![0u64; node_size];
+        comm.all_gather_into(&local, &mut lengths);
+        let sum = lengths.iter().try_fold(0usize, |sum, &length| {
+            sum.checked_add(usize::try_from(length).map_err(|_| Error::SizeOverflow)?)
+                .ok_or(Error::SizeOverflow)
+        })?;
+        if sum != total {
+            return Err(Error::Window("shared slices do not cover the segment"));
+        }
+        if total > 0 && lengths[0] == 0 {
+            return Err(Error::Window("rank zero must own a non-empty shared slice"));
+        }
+        let expected_offset = lengths[..node_rank]
+            .iter()
+            .try_fold(0usize, |sum, &length| {
+                sum.checked_add(usize::try_from(length).map_err(|_| Error::SizeOverflow)?)
+                    .ok_or(Error::SizeOverflow)
+            })?;
+        let local_bytes = ffi::MPI_Aint::try_from(mine.len()).map_err(|_| Error::SizeOverflow)?;
+
+        let mut win = unsafe { ffi::RSMPI_WIN_NULL };
+        let mut mapped: *mut c_void = std::ptr::null_mut();
+        let outcome: Result<(), Error> = (|| {
+            unsafe {
+                check(ffi::MPI_Win_allocate_shared(
+                    local_bytes,
+                    1,
+                    ffi::RSMPI_INFO_NULL,
+                    comm.as_raw(),
+                    &mut mapped as *mut *mut c_void as *mut c_void,
+                    &mut win,
+                ))?;
+            }
+            // The segment is read by plain loads, which the standard orders
+            // only through window synchronization: lock_all opens the epoch,
+            // Win_sync by the writer publishes its stores, the barrier orders
+            // the ranks in time, Win_sync by every reader orders its later
+            // loads, unlock_all closes the epoch.
+            let mut model: *mut c_void = std::ptr::null_mut();
+            let mut flag = 0;
+            unsafe {
+                check(ffi::MPI_Win_get_attr(
+                    win,
+                    ffi::MPI_WIN_MODEL as i32,
+                    &mut model as *mut *mut c_void as *mut c_void,
+                    &mut flag,
+                ))?;
+            }
+            // Load/store semantics on a shared window are defined only in the
+            // unified model; refuse the other rather than read undefined bytes.
+            if flag == 0
+                || model.is_null()
+                || unsafe { *(model as *const i32) } != ffi::MPI_WIN_UNIFIED as i32
+            {
+                return Err(Error::Window(
+                    "shared window is not in the unified memory model",
+                ));
+            }
+            unsafe {
+                check(ffi::MPI_Win_lock_all(ffi::MPI_MODE_NOCHECK as i32, win))?;
+            }
+            if !mine.is_empty() {
+                unsafe {
+                    std::ptr::copy_nonoverlapping(mine.as_ptr(), mapped as *mut u8, mine.len());
+                    check(ffi::MPI_Win_sync(win))?;
+                }
+            }
+            comm.barrier();
+            let mut size = 0;
+            let mut disp_unit = 0;
+            unsafe {
+                check(ffi::MPI_Win_shared_query(
+                    win,
+                    0,
+                    &mut size,
+                    &mut disp_unit,
+                    &mut mapped as *mut *mut c_void as *mut c_void,
+                ))?;
+            }
+            if disp_unit != 1 || (total > 0 && size <= 0) {
+                return Err(Error::Window("shared segment has no rank-zero storage"));
+            }
+            if total > 0 {
+                let whole = mapped as *const u8;
+                let local_base = unsafe { (whole as *const u8).add(expected_offset) };
+                let mut queried = std::ptr::null_mut();
+                let mut queried_size = 0;
+                let mut queried_disp = 0;
+                unsafe {
+                    check(ffi::MPI_Win_shared_query(
+                        win,
+                        node_rank as Rank,
+                        &mut queried_size,
+                        &mut queried_disp,
+                        &mut queried as *mut *mut c_void as *mut c_void,
+                    ))?;
+                }
+                if queried_disp != 1 || queried_size != mine.len() as ffi::MPI_Aint {
+                    return Err(Error::Window("shared slice size changed during query"));
+                }
+                if !mine.is_empty() && queried as *const u8 != local_base {
+                    return Err(Error::Window("shared slices are not contiguous"));
+                }
+            }
+            unsafe {
+                check(ffi::MPI_Win_sync(win))?;
+                check(ffi::MPI_Win_unlock_all(win))?;
+            }
+            Ok(())
+        })();
+        if outcome.is_err() {
+            unsafe {
+                let _ = check(ffi::MPI_Win_free(&mut win));
+            }
+        }
+        outcome?;
+        Ok(SharedWindow {
+            win,
+            base: mapped as *const u8,
+            len: total,
+            _comm: comm,
+        })
+    }
+
+    /// Zero-copy view of the published bytes.
+    #[inline]
+    pub fn get(&self) -> &[u8] {
+        if self.len == 0 {
+            &[]
+        } else {
+            // SAFETY: `base` is the node's mapped segment, live as long as
+            // the window, and nothing writes it after `publish` returns.
+            unsafe { std::slice::from_raw_parts(self.base, self.len) }
+        }
+    }
+
+    /// Number of published bytes.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Whether `publish` was given an empty buffer.
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+}
+
+impl Drop for SharedWindow {
+    fn drop(&mut self) {
+        // MPI_Win_free is collective over the window's group (one node), so
+        // every rank of a node must drop its window at the same point. See
+        // the type documentation.
+        unsafe {
+            let _ = check(ffi::MPI_Win_free(&mut self.win));
+        }
     }
 }
