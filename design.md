@@ -97,9 +97,9 @@ retry or an erasure rather than accepting malformed data.
 Safe mode uses the same slot image, send, and poll path. It adds only overwrite gating.
 
 Before reusing a slot, the sender reads its lane's cumulative ACK from local unified window memory.
-If `sequence - acknowledged > depth`, it yields until the receiver advances the ACK. The receiver
-advances it with one atomic `MPI_Fetch_and_op` after consuming messages. The sender checks that the
-counter never regresses or exceeds what it sent.
+If `sequence - acknowledged > depth`, the send is refused with `Error::Full`: nothing is put and the
+sequence is not consumed. The receiver advances the ACK with one atomic `MPI_Fetch_and_op` after
+consuming messages. The sender checks that the counter never regresses or exceeds what it sent.
 
 The gate is exactly tight. Sequence `s` occupies slot `(s - 1) mod depth`, whose previous occupant
 is `s - depth`, so `s - acknowledged <= depth` is precisely `acknowledged >= s - depth`. An
@@ -108,11 +108,11 @@ sender is let through, with no slack in either direction.
 
 The cached counter is refreshed lazily: it only moves when a send finds the gate shut, which is
 roughly once per `depth` sends. A gate check therefore re-reads before it concludes anything, and
-`waits` counts senders that blocked after refreshing rather than senders that found a stale cache.
+`full` counts sends refused after refreshing rather than sends that found a stale cache.
 
-`send` blocks indefinitely when a peer stops acknowledging. That is the backpressure contract, not
-an oversight: there is no deadline, no cancellation, and a peer that has stopped draining will hang
-its senders. A caller that needs to survive a dead peer has to notice out of band.
+`send` makes one attempt and never waits. A peer that stops acknowledging makes every send to it
+`Full`. Whether to retry, do other work or give up is the caller's choice, and noticing a dead peer
+is the caller's too.
 
 No slot is overwritten before consumption and wee keep async-ness.
 
@@ -128,7 +128,7 @@ safe source bytes += 8
 
 Total storage is proportional to active directed worker connections, not all worker pairs. Raw send
 costs one Put and one flush. Raw poll costs local loads only. Safe mode adds one atomic operation per
-`ack` call and waits only when a sender would overwrite unread data.
+`ack` call and refuses a send only when it would overwrite unread data.
 
 A send always moves `slot` bytes, whatever the payload, so a lane whose capacity greatly exceeds its
 typical message pays for the difference. Size capacity to the messages actually sent.

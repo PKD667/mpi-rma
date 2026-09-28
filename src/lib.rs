@@ -5,14 +5,14 @@
 //! extends every rsmpi communicator through [`CommunicatorRmaExt`], and builds
 //! fixed-slot [`Ring`] transport on those windows.
 //!
-//! [`SharedWindow`] is the deployment half: it publishes a byte buffer into one
-//! shared-memory segment per node and maps it read-only on every rank, which is
-//! how a sink hands every worker the same bytes without a per-rank copy.
+//! [`Segment`] is the deployment half: a POSIX shared-memory object one process
+//! writes once and other processes on the node map read-only. No MPI call.
 //!
 //! [`Ring::safe`] provides backpressure with a cumulative-acknowledgement
-//! gate. [`Ring::raw`] never blocks and reports overwritten messages instead.
-//! Polling reads local memory; each safe [`Ring::ack`] call uses one atomic
-//! MPI operation.
+//! gate: a send that would overwrite an unacknowledged slot is refused with
+//! [`Error::Full`]. [`Ring::raw`] is never refused and reports overwritten
+//! messages instead. Neither mode waits. Polling reads local memory; each safe
+//! [`Ring::ack`] call uses one atomic MPI operation.
 //!
 //! ```no_run
 //! use mpi::topology::Communicator;
@@ -42,11 +42,13 @@
 
 mod error;
 mod ring;
+mod segment;
 mod window;
 
 pub use error::Error;
 pub use ring::{Message, Ring};
-pub use window::{CommunicatorRmaExt, MemoryModel, RmaElement, SharedWindow, Window};
+pub use segment::Segment;
+pub use window::{CommunicatorRmaExt, MemoryModel, RmaElement, Window};
 
 /// rsmpi-style trait prelude. Importing this extends the original
 /// communicator types in place; no communicator wrapper is involved.

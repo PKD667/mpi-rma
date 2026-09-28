@@ -35,7 +35,7 @@ use mpi::collective::CommunicatorCollectives;
 use mpi::point_to_point::{Destination, Source};
 use mpi::topology::{Communicator, Rank, SimpleCommunicator};
 
-use mpi_rma::{Message, Ring};
+use mpi_rma::{Error, Message, Ring};
 
 const TAG_NOISE: i32 = 11;
 const TAG_STOP: i32 = 12;
@@ -47,6 +47,22 @@ fn paint(origin: Rank, sequence: u64, buf: &mut [u8]) {
     buf[4..STAMP].copy_from_slice(&sequence.to_le_bytes());
     for (i, b) in buf[STAMP..].iter_mut().enumerate() {
         *b = (sequence as u8).wrapping_add(i as u8);
+    }
+}
+
+/// One send, retried while a safe ring refuses it with `Full`. Returns the
+/// nanoseconds spent refused, or `None` when the first attempt went through.
+fn push(ring: &Ring, to: Rank, buf: &[u8]) -> Result<Option<u64>, Error> {
+    let mut refused: Option<std::time::Instant> = None;
+    loop {
+        match ring.send(to, buf) {
+            Ok(_) => return Ok(refused.map(|at| at.elapsed().as_nanos() as u64)),
+            Err(Error::Full) => {
+                refused.get_or_insert_with(std::time::Instant::now);
+                std::thread::yield_now();
+            }
+            Err(e) => return Err(e),
+        }
     }
 }
 
@@ -169,6 +185,8 @@ fn main() {
 
     world.barrier();
     let started = std::time::Instant::now();
+    // Sends refused at least once, and the nanoseconds spent refused.
+    let (mut waits, mut wait_ns) = (0u64, 0u64);
 
     let outcome = std::thread::scope(|scope| {
         if noise_kib > 0 {
@@ -238,8 +256,12 @@ fn main() {
         for sequence in 1..=messages {
             for destination in (0..size).filter(|&r| r != rank) {
                 paint(rank, sequence, &mut buf);
-                ring.send(destination, &buf)
+                let refused = push(&ring, destination, &buf)
                     .unwrap_or_else(|e| panic!("rank {rank}: send to {destination}: {e}"));
+                if let Some(ns) = refused {
+                    waits += 1;
+                    wait_ns += ns;
+                }
             }
             // Absolute deadlines, so a slow round is not paid for twice and the
             // offered rate stays the one that was asked for.
@@ -296,8 +318,8 @@ fn main() {
         lost,
         corrupt,
         ring.max_lag(),
-        ring.waits(),
-        ring.wait_ns(),
+        waits,
+        wait_ns,
     ];
     let mut all = vec![0u64; mine.len() * size as usize];
     world.all_gather_into(&mine[..], &mut all[..]);

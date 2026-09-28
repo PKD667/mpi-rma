@@ -6,7 +6,6 @@
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
 
 use crc32fast::Hasher;
 use mpi::collective::CommunicatorCollectives;
@@ -77,8 +76,7 @@ pub struct Ring {
     lost: AtomicU64,
     corrupt: AtomicU64,
     max_lag: AtomicU64,
-    waits: AtomicU64,
-    wait_ns: AtomicU64,
+    full: AtomicU64,
 }
 
 impl Ring {
@@ -89,10 +87,10 @@ impl Ring {
     /// the lane holds, `capacity` the payload bytes one slot fits. Every rank
     /// passes the same list.
     ///
-    /// Each source lane gets a cumulative-acknowledgement counter at the source
-    /// The senders spin on `yield_now` until the receiver has acked
-    /// enough earlier messages to make room in the slot ring. Requires a
-    /// unified window memory model otherwise contruction fails
+    /// Each source lane gets a cumulative-acknowledgement counter at the source.
+    /// A send that would overwrite an unacknowledged slot is refused with
+    /// [`Error::Full`], and the sender never waits. Requires a unified window
+    /// memory model, otherwise construction fails.
     ///
     /// # Errors
     /// - [`Error::Intercommunicator`] if `comm` is an intercommunicator.
@@ -113,8 +111,8 @@ impl Ring {
     ///
     /// `rings` has the same shape as for [`Self::safe`]. No acknowledgement
     /// counter: unread slots are silently overwritten when the depth is
-    /// exhausted, and the receiver reports the gap via [`Self::lost`]. The
-    /// sender never blocks on a slow peer. Requires a unified window memory
+    /// exhausted, and the receiver reports the gap via [`Self::lost`]. A send
+    /// is never refused for a slow peer. Requires a unified window memory
     /// model.
     ///
     /// # Errors
@@ -245,8 +243,7 @@ impl Ring {
             lost: AtomicU64::new(0),
             corrupt: AtomicU64::new(0),
             max_lag: AtomicU64::new(0),
-            waits: AtomicU64::new(0),
-            wait_ns: AtomicU64::new(0),
+            full: AtomicU64::new(0),
         })
     }
 
@@ -318,27 +315,23 @@ impl Ring {
         self.max_lag.load(Ordering::Relaxed)
     }
 
-    /// Number of times a safe-mode sender actually blocked on acknowledgements.
+    /// Safe-mode sends refused with [`Error::Full`].
     ///
-    /// Refreshing the cached counter does not count; only a sender that
-    /// found no headroom after refreshing and had to spin does.
-    pub fn waits(&self) -> u64 {
-        self.waits.load(Ordering::Relaxed)
-    }
-
-    /// Cumulative nanoseconds spent in safe-mode wait spins.
-    pub fn wait_ns(&self) -> u64 {
-        self.wait_ns.load(Ordering::Relaxed)
+    /// Refreshing the cached counter does not count. Only a send that found
+    /// no headroom after refreshing does.
+    pub fn full(&self) -> u64 {
+        self.full.load(Ordering::Relaxed)
     }
 
     /// Send one message and return its sequence number.
     ///
-    /// Completes the put at the target before returning. In safe mode,
-    /// spins on `yield_now` if the destination has not yet acknowledged
-    /// enough earlier messages to make room in the slot ring; the wait is
-    /// recorded in [`Self::waits`] and [`Self::wait_ns`].
+    /// Completes the put at the target before returning. One attempt: in safe
+    /// mode, a destination that has not acknowledged enough earlier messages
+    /// to free a slot refuses the send, counted in [`Self::full`].
     ///
     /// # Errors
+    /// - [`Error::Full`] if a safe lane has no acknowledged slot free. Nothing
+    ///   was sent and the sequence is unchanged.
     /// - [`Error::Rank`] if `destination` is outside the communicator.
     /// - [`Error::Ring`] if no lane to `destination` is configured, the
     ///   sequence number would overflow, the acknowledgement counter
@@ -366,20 +359,12 @@ impl Ring {
             .ok_or(Error::Ring("sequence number exhausted"))?;
         if self.is_safe() && sequence - *acked > lane.depth as u64 {
             // The cached counter only moves when read here, so it is stale
-            // roughly once per `depth` sends. Refresh before calling this a
-            // wait: otherwise `waits` counts cache misses, not blocked senders.
+            // roughly once per `depth` sends. Refresh before refusing: a stale
+            // cache would refuse a send the receiver already made room for.
             *acked = self.acknowledged(lane, *sent, *acked)?;
             if sequence - *acked > lane.depth as u64 {
-                self.waits.fetch_add(1, Ordering::Relaxed);
-                let started = Instant::now();
-                while sequence - *acked > lane.depth as u64 {
-                    std::thread::yield_now();
-                    *acked = self.acknowledged(lane, *sent, *acked)?;
-                }
-                self.wait_ns.fetch_add(
-                    started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64,
-                    Ordering::Relaxed,
-                );
+                self.full.fetch_add(1, Ordering::Relaxed);
+                return Err(Error::Full);
             }
         }
 

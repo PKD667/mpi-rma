@@ -1,7 +1,6 @@
 // Ring test: safe and raw modes on a 2-rank pair.
 //   mpirun -n 2 test_ring
 
-use std::thread;
 use std::time::{Duration, Instant};
 
 use mpi::Threading;
@@ -79,40 +78,25 @@ fn safe_basics(world: &SimpleCommunicator, rank: Rank, next: Rank, prev: Rank) {
     ring.close().unwrap();
 }
 
-/// A safe sender with no free slot blocks until the receiver acknowledges.
+/// A safe sender with no free slot is refused, and the refusal consumes nothing.
 ///
 /// One-way, so the ack timing belongs to the test. On a symmetric pair each
 /// rank's ack races the other's gate check: whichever receiver drains first
 /// opens its peer's gate before that peer ever evaluates it, and neither side
-/// can be relied on to block.
+/// can be relied on to be refused.
 fn backpressure(world: &SimpleCommunicator, rank: Rank) {
     let ring = Ring::safe(world, &oneway(2, 8)).unwrap();
     if rank == 0 {
         assert_eq!(ring.send(1, &[1]).unwrap(), 1);
         assert_eq!(ring.send(1, &[2]).unwrap(), 2);
+        // Depth is 2 and the receiver is parked at the barrier, so nothing has
+        // been acknowledged and there is no slot for the third message.
+        assert!(matches!(ring.send(1, &[3]), Err(Error::Full)));
+        assert_eq!(ring.full(), 1);
     }
     world.barrier();
 
-    if rank == 0 {
-        let sent = thread::scope(|scope| {
-            let sender = &ring;
-            let handle = scope.spawn(move || sender.send(1, &[3]));
-            // Depth is 2 and nothing has been acknowledged, so there is no slot
-            // for the third message and the send has to wait.
-            let deadline = Instant::now() + Duration::from_secs(5);
-            while ring.waits() == 0 {
-                assert!(Instant::now() < deadline, "safe sender never blocked");
-                thread::yield_now();
-            }
-            // The receiver is parked here, so it cannot have drained early.
-            world.barrier();
-            handle.join().expect("sender thread panicked").unwrap()
-        });
-        assert_eq!(sent, 3);
-        assert!(ring.waits() > 0);
-        assert!(ring.wait_ns() > 0);
-    } else {
-        world.barrier();
+    if rank == 1 {
         let messages = ring.poll().unwrap();
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[0].data, vec![1]);
@@ -127,6 +111,24 @@ fn backpressure(world: &SimpleCommunicator, rank: Rank) {
         ));
         ring.ack(0, 2).unwrap();
         ring.ack(0, 2).unwrap();
+    }
+    world.barrier();
+
+    // The caller owns the wait. The refusal consumed no sequence, so the
+    // message that finally goes out is still 3.
+    if rank == 0 {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let sequence = loop {
+            match ring.send(1, &[3]) {
+                Ok(sequence) => break sequence,
+                Err(Error::Full) => {
+                    assert!(Instant::now() < deadline, "the ack never freed a slot");
+                    std::hint::spin_loop();
+                }
+                Err(e) => panic!("send after the ack: {e}"),
+            }
+        };
+        assert_eq!(sequence, 3);
     }
 
     world.barrier();

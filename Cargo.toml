@@ -18,6 +18,7 @@ exclude = ["data/*.tsv"]
 [dependencies]
 mpi = "0.8"
 crc32fast = "1"
+libc = "0.2"
 
 [[example]]
 name = "compare"

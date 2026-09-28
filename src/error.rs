@@ -4,6 +4,7 @@
 //!   error handler or the threading check).
 //! - `Intercommunicator`, `SizeOverflow`, `CountOverflow`, `Rank`, `Range`,
 //!   `Window`: window API failures.
+//! - `Full`: a safe ring's refusal for capacity. Nothing was sent.
 //! - `Ring`, `Payload`, `Ack`, `Lapped`: ring transport failures.
 
 use mpi::Threading;
@@ -22,6 +23,8 @@ pub enum Error {
         window: usize,
     },
     Window(&'static str),
+    /// A safe lane has no acknowledged slot free. Nothing was sent.
+    Full,
     Ring(&'static str),
     Payload {
         len: usize,
@@ -56,6 +59,7 @@ impl std::fmt::Display for Error {
                 start.saturating_add(*len)
             ),
             Error::Window(msg) => write!(f, "invalid RMA window: {msg}"),
+            Error::Full => write!(f, "safe ring lane has no acknowledged slot free"),
             Error::Ring(msg) => write!(f, "invalid RMA ring state: {msg}"),
             Error::Payload { len, capacity } => {
                 write!(f, "ring payload length {len} exceeds capacity {capacity}")

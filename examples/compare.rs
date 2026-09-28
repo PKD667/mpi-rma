@@ -13,10 +13,10 @@
 //            Two rates come out of this and a lossy transport separates them.
 //            `inject` is what the sender achieved, measured until its last send
 //            returned; `goodput` is what the receiver actually took delivery of.
-//            For safe mode and p2p the two agree and the sender pays in stall
-//            time (`wait_s`). For raw mode the sender never stalls and pays in
-//            messages that never arrive. Reporting only one of the two would
-//            flatter whichever mode is being looked at.
+//            For safe mode and p2p the two agree and the sender pays in time
+//            spent refused (`wait_s`). For raw mode the sender is never
+//            refused and pays in messages that never arrive. Reporting only one
+//            of the two would flatter whichever mode is being looked at.
 //   rtt      one message out, one back, repeated. Half the round trip is the
 //            one-way latency of an unloaded lane.
 //
@@ -43,7 +43,7 @@ use mpi::collective::CommunicatorCollectives;
 use mpi::point_to_point::{Destination, Source};
 use mpi::topology::{Communicator, Group, Rank, SimpleCommunicator};
 
-use mpi_rma::Ring;
+use mpi_rma::{Error, Ring};
 
 const TAG_DATA: i32 = 1;
 const TAG_STOP: i32 = 2;
@@ -129,6 +129,22 @@ fn shuffled(rep: u32, len: usize) -> Vec<u8> {
 
 // ── Ring ────────────────────────────────────────────────────────────────────
 
+/// One send, retried while a safe ring refuses it with `Full`. Returns the
+/// nanoseconds spent refused, or `None` when the first attempt went through.
+fn push(ring: &Ring, to: Rank, buf: &[u8]) -> Result<Option<u64>, Error> {
+    let mut refused: Option<Instant> = None;
+    loop {
+        match ring.send(to, buf) {
+            Ok(_) => return Ok(refused.map(|at| at.elapsed().as_nanos() as u64)),
+            Err(Error::Full) => {
+                refused.get_or_insert_with(Instant::now);
+                std::thread::yield_now();
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
+
 /// Rank 0 pushes `n` messages flat out; rank 1 drains and reports arrivals.
 ///
 /// Returns `(sent, delivered, inject, total, wait)`. `inject` stops when the
@@ -143,17 +159,17 @@ fn ring_stream(
     n: u64,
 ) -> (u64, u64, f64, f64, f64) {
     comm.barrier();
-    let stalled = ring.wait_ns();
     let t0 = Instant::now();
     if rank == 0 {
         let buf = shuffled(rep, payload);
         let mut sent = 0u64;
+        let mut refused = 0u64;
         while sent < n {
-            ring.send(1, &buf).unwrap();
+            refused += push(ring, 1, &buf).unwrap().unwrap_or(0);
             sent += 1;
         }
         let inject = t0.elapsed().as_secs_f64();
-        let wait = (ring.wait_ns() - stalled) as f64 * 1e-9;
+        let wait = refused as f64 * 1e-9;
         // Tell the drain side to stop, then collect what it actually saw.
         comm.process_at_rank(1).send_with_tag(&[0u8], TAG_STOP);
         let (reply, _) = comm
@@ -198,10 +214,10 @@ fn ring_stream(
 
 /// One message each way, `iters` times, on the ring.
 ///
-/// Returns `(total, max_us)`: the run wall time and the worst single
+/// Returns `(total, max_us, wait)`: the run wall time, the worst single
 /// round trip, halved to a one-way latency so it shares the `us_per_msg`
-/// unit of the mean.
-fn ring_rtt(ring: &Ring, rank: Rank, rep: u32, payload: usize, iters: u64) -> (f64, f64) {
+/// unit of the mean, and the seconds this rank's sends spent refused.
+fn ring_rtt(ring: &Ring, rank: Rank, rep: u32, payload: usize, iters: u64) -> (f64, f64, f64) {
     let buf = shuffled(rep, payload);
     let other: Rank = if rank == 0 { 1 } else { 0 };
     let mut seen = 0u64;
@@ -217,19 +233,20 @@ fn ring_rtt(ring: &Ring, rank: Rank, rep: u32, payload: usize, iters: u64) -> (f
         }
     };
     let mut max_us = 0.0f64;
+    let mut refused = 0u64;
     let t0 = Instant::now();
     for _ in 0..iters {
         let start = Instant::now();
         if rank == 0 {
-            ring.send(1, &buf).unwrap();
+            refused += push(ring, 1, &buf).unwrap().unwrap_or(0);
             await_one(ring, &mut seen);
         } else {
             await_one(ring, &mut seen);
-            ring.send(0, &buf).unwrap();
+            refused += push(ring, 0, &buf).unwrap().unwrap_or(0);
         }
         max_us = max_us.max(start.elapsed().as_secs_f64() * 5e5);
     }
-    (t0.elapsed().as_secs_f64(), max_us)
+    (t0.elapsed().as_secs_f64(), max_us, refused as f64 * 1e-9)
 }
 
 // ── Point to point ──────────────────────────────────────────────────────────
@@ -428,8 +445,7 @@ fn main() {
                         .print(size, depth, noise_kib, rep);
                     }
                     duo.barrier();
-                    let stalled = ring.wait_ns();
-                    let (dt, max_us) = ring_rtt(&ring, rank, rep, payload, iters);
+                    let (dt, max_us, wait) = ring_rtt(&ring, rank, rep, payload, iters);
                     if rank == 0 {
                         Row {
                             transport: name,
@@ -439,7 +455,7 @@ fn main() {
                             delivered: iters * 2,
                             inject: dt,
                             total: dt,
-                            wait: (ring.wait_ns() - stalled) as f64 * 1e-9,
+                            wait,
                             max_us,
                         }
                         .print(size, depth, noise_kib, rep);

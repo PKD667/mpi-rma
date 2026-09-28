@@ -19,12 +19,13 @@ Perform almost 4x faster than Point-to-Point MPI with small payloads and in a no
 ## Why a ring
 
 A fixed-slot ring puts payloads into pre-allocated RMA slots. Polling reads
-local memory. Raw senders never wait for the receiver; safe senders wait only
-when they would overwrite an unacknowledged slot.
+local memory. No sender ever waits for the receiver. A safe send that would
+overwrite an unacknowledged slot is refused with `Error::Full`, and the caller
+decides whether to retry.
 
-- **Safe mode** blocks the sender with a cumulative ack gate. Nothing is ever
+- **Safe mode** gates the sender with a cumulative ack counter. Nothing is ever
   dropped, and the sender can't lap the receiver.
-- **Raw mode** never blocks. Unread slots are overwritten and the receiver
+- **Raw mode** is never refused. Unread slots are overwritten and the receiver
   learns about the gap through `lost()`.
 
 Polling is local memory access in both modes. Each safe `ack` call uses one
