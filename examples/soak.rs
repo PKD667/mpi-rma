@@ -313,14 +313,7 @@ fn main() {
     // Gather the counters and let rank 0 write every row. Interleaving the
     // ranks' own stdout would scatter the header into the middle of the table:
     // mpirun orders a rank's output against itself and nothing else.
-    let mine = [
-        got,
-        lost,
-        corrupt,
-        ring.max_lag(),
-        waits,
-        wait_ns,
-    ];
+    let mine = [got, lost, corrupt, ring.max_lag(), waits, wait_ns];
     let mut all = vec![0u64; mine.len() * size as usize];
     world.all_gather_into(&mine[..], &mut all[..]);
     if rank == 0 {

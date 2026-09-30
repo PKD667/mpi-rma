@@ -58,15 +58,29 @@ impl Segment {
     /// refused with its errno (e.g. `ENOSPC`) rather than faulting (`SIGBUS`) during
     /// the copy.
     pub fn create(name: &CStr, revision: NonZeroU64, payload: &[u8]) -> io::Result<Self> {
-        let size = HEADER
-            .checked_add(payload.len())
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "segment size overflows usize"))?;
-        let length = u64::try_from(payload.len())
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "payload length does not fit u64"))?;
-        let size_off = libc::off_t::try_from(size)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "segment size does not fit off_t"))?;
+        let size = HEADER.checked_add(payload.len()).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "segment size overflows usize")
+        })?;
+        let length = u64::try_from(payload.len()).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "payload length does not fit u64",
+            )
+        })?;
+        let size_off = libc::off_t::try_from(size).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "segment size does not fit off_t",
+            )
+        })?;
 
-        let fd = unsafe { libc::shm_open(name.as_ptr(), libc::O_CREAT | libc::O_EXCL | libc::O_RDWR, 0o600) };
+        let fd = unsafe {
+            libc::shm_open(
+                name.as_ptr(),
+                libc::O_CREAT | libc::O_EXCL | libc::O_RDWR,
+                0o600,
+            )
+        };
         if fd < 0 {
             return Err(io::Error::last_os_error());
         }
@@ -137,11 +151,15 @@ impl Segment {
     /// # Safety
     /// The creator does not write the object while this mapping lives.
     pub unsafe fn open(name: &CStr, revision: NonZeroU64, length: usize) -> io::Result<Self> {
-        let size = HEADER
-            .checked_add(length)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "segment size overflows usize"))?;
-        let size_off = libc::off_t::try_from(size)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "segment size does not fit off_t"))?;
+        let size = HEADER.checked_add(length).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "segment size overflows usize")
+        })?;
+        let size_off = libc::off_t::try_from(size).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "segment size does not fit off_t",
+            )
+        })?;
 
         let fd = unsafe { libc::shm_open(name.as_ptr(), libc::O_RDONLY, 0) };
         if fd < 0 {
@@ -189,7 +207,8 @@ impl Segment {
         // header field or payload byte. A 64-bit aligned atomic load on read-only
         // memory is sound on the supported targets (std::sync::atomic, "Atomic
         // accesses to read-only memory").
-        let published = unsafe { AtomicU64::from_ptr(base.add(16) as *mut u64).load(Ordering::Acquire) };
+        let published =
+            unsafe { AtomicU64::from_ptr(base.add(16) as *mut u64).load(Ordering::Acquire) };
         if published != revision.get() {
             munmap_or_abort(name, base, size);
             return Err(io::Error::new(
@@ -220,7 +239,10 @@ impl Segment {
     /// The published bytes. A detached segment has no bytes: this asserts rather
     /// than manufacturing a slice from a null base.
     pub fn payload(&self) -> &[u8] {
-        assert!(!self.base.is_null(), "mpi_rma::Segment::payload after detach");
+        assert!(
+            !self.base.is_null(),
+            "mpi_rma::Segment::payload after detach"
+        );
         // SAFETY: `base` maps `size` bytes; the assert above rejects the detached
         // (null) state before any pointer arithmetic.
         unsafe { std::slice::from_raw_parts(self.base.add(HEADER), self.size - HEADER) }
@@ -283,7 +305,10 @@ impl Drop for Segment {
                 let errno = io::Error::last_os_error()
                     .raw_os_error()
                     .expect("munmap failure reports an errno");
-                eprintln!("mpi-rma segment {:?}: munmap failed (errno {errno})", self.name);
+                eprintln!(
+                    "mpi-rma segment {:?}: munmap failed (errno {errno})",
+                    self.name
+                );
                 std::process::abort();
             }
             self.base = std::ptr::null_mut();
@@ -293,7 +318,10 @@ impl Drop for Segment {
                 let errno = io::Error::last_os_error()
                     .raw_os_error()
                     .expect("shm_unlink failure reports an errno");
-                eprintln!("mpi-rma segment {:?}: shm_unlink failed (errno {errno})", self.name);
+                eprintln!(
+                    "mpi-rma segment {:?}: shm_unlink failed (errno {errno})",
+                    self.name
+                );
                 std::process::abort();
             }
             self.owner = false;

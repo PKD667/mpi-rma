@@ -97,14 +97,16 @@ fn misuse_is_refused_not_hidden() {
     let payload_after_detach = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         reader.payload();
     }));
-    assert!(payload_after_detach.is_err(), "payload after detach must panic");
+    assert!(
+        payload_after_detach.is_err(),
+        "payload after detach must panic"
+    );
 
     // `retire` on a reader must panic before detaching or unlinking anything.
     // Its Drop then munmaps normally, so the unwind leaks no mapping.
     let mut reader = unsafe { Segment::open(&name, revision(1), LEN) }.expect("open reader");
-    let retire_on_reader = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        reader.retire()
-    }));
+    let retire_on_reader =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| reader.retire()));
     assert!(retire_on_reader.is_err(), "retire on a reader must panic");
 
     creator.retire().expect("retire creator");

@@ -398,4 +398,3 @@ impl<T: RmaElement> Drop for Window<T> {
         let _ = self.finish();
     }
 }
-
