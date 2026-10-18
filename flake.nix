@@ -78,20 +78,19 @@
           loss = experiment "loss" { inherit ranks; repeats = 5; messages = 20000; } "soak";
           scale = experiment "scale" { inherit ranks; repeats = 5; messages = 20000; } "soak";
         };
-      };
-
-      lab.${system}.analyses = let e = self.lab.${system}.experiments; in {
-        # nix build .#perf -> mpi-rma-perf.svg and summary.csv
-        perf = l.analysis {
-          name = "mpi-rma-perf";
-          use.compare = e.compare;
-          pipelines.perf.script = pkgs.replaceVars ./nixsci/perf.R { inherit fontsconf; };
-        };
-        # nix build .#tables -> loss.csv and scale.csv
-        tables = l.analysis {
-          name = "mpi-rma-tables";
-          use = { inherit (e) loss scale; };
-          pipelines.tables.script = ./nixsci/tables.R;
+        analyses = let e = experiments; in {
+          # nix build .#perf -> mpi-rma-perf.svg and summary.csv
+          perf = l.analysis {
+            name = "mpi-rma-perf";
+            use.compare = e.compare;
+            pipelines.perf.script = pkgs.replaceVars ./nixsci/perf.R { inherit fontsconf; };
+          };
+          # nix build .#tables -> loss.csv and scale.csv
+          tables = l.analysis {
+            name = "mpi-rma-tables";
+            use = { inherit (e) loss scale; };
+            pipelines.tables.script = ./nixsci/tables.R;
+          };
         };
       };
 
