@@ -58,7 +58,7 @@
         name = "mpi-rma-${name}";
         closures.${system} = closure name;
         inherit params;
-        data.${dataset} = data.${dataset};
+        data = { ${dataset} = data.${dataset}; host = data.host; };
       };
 
       # Ranks: this repository's published numbers (BENCHMARKS.md) used 24 on a dual-Xeon node. The

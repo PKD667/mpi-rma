@@ -21,6 +21,13 @@ def block(out):
     return [dict(zip(rows[0], r)) for r in rows[1:]]
 
 
+def host():
+    cpu = next((l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name")), "unknown")
+    mem = next((int(l.split()[1]) for l in open("/proc/meminfo") if l.startswith("MemTotal")), 0)
+    mpi = subprocess.run(["mpirun", "--version"], capture_output=True, text=True).stdout.splitlines()[0]
+    lab.record("host", {"cpu": cpu, "threads": os.cpu_count(), "mem_kb": mem, "kernel": os.uname().release, "mpi": mpi})
+
+
 def case(dataset, ranks, exe, *args):
     cols = SCHEMA[dataset]
     for attempt in range(3):
@@ -64,4 +71,5 @@ def scale():
             r = min(r * 2, top)
 
 
+host()
 {"compare": compare, "loss": loss, "scale": scale}[sys.argv[1]]()

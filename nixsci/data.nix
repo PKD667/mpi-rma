@@ -25,6 +25,18 @@
     };
   };
 
+  # What the run observed about its host, one row per run, so a figure can name the machine it was measured on.
+  host = {
+    key = [ "cpu" ];
+    columns = {
+      cpu = "str";
+      threads = "int";
+      mem_kb = "int";
+      kernel = "str";
+      mpi = "str";
+    };
+  };
+
   soak = {
     key = [ "mode" "ranks" "depth" "payload" "noise_kib" "pace_ns" "rep" "rank" ];
     columns = {
