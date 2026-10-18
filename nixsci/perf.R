@@ -42,18 +42,19 @@ bars <- do.call(rbind, lapply(seq_along(payload), function(i) {
   d <- sector(centre[i] - half, centre[i] + half, R0, rad(ratio[i])); d$id <- i; d$fast <- ratio[i] >= 1; d }))
 circle <- function(r) { t <- seq(0, 2 * pi, length.out = 240); data.frame(x = r * cos(t), y = r * sin(t)) }
 track <- do.call(rbind, lapply(seq_along(centre), \(i) cbind(sector(centre[i] - half, centre[i] + half, rad(0.2), rad(2.9)), id = i)))
-RL <- rad(4.2)
+RL <- rad(3.6)
 lab <- data.frame(x = RL * cos(centre * pi / 180), y = RL * sin(centre * pi / 180),
-                  txt = sprintf("%s\n%.2f\u00d7", size(payload), ratio), fast = ratio >= 1)
+                  txt = sprintf("%s\n%.2f\u00d7", size(payload), ratio), fast = ratio >= 1,
+                  hj = ifelse(cos(centre * pi / 180) > 0.3, 0, ifelse(cos(centre * pi / 180) < -0.3, 1, 0.5)))
 p_ring <- ggplot() +
   geom_polygon(data = track, aes(x, y, group = id), fill = "#f3f4f6") +
   geom_path(data = circle(R0), aes(x, y), colour = ink, linewidth = 0.5, linetype = "22") +
   geom_polygon(data = bars, aes(x, y, group = id, fill = fast)) +
-  geom_text(data = lab, aes(x, y, label = txt, colour = fast), family = fam, size = 3.2, lineheight = 1.1, fontface = "bold") +
+  geom_text(data = lab, aes(x, y, label = txt, colour = fast, hjust = hj), family = fam, size = 3.2, lineheight = 1.1, fontface = "bold") +
   annotate("text", x = 0, y = R0 + 0.09, label = "MPI_Send", family = fam, size = 2.7, colour = muted) +
   scale_fill_manual(values = c(`TRUE` = accent, `FALSE` = slow), guide = "none") +
   scale_colour_manual(values = c(`TRUE` = accent, `FALSE` = slow), guide = "none") +
-  coord_fixed(xlim = c(-1.95, 1.95), ylim = c(-1.95, 1.95), expand = FALSE, clip = "off") +
+  coord_fixed(xlim = c(-2.5, 2.5), ylim = c(-1.95, 1.95), expand = FALSE, clip = "off") +
   theme_void() + theme(plot.background = element_blank())
 
 # ---- curves ----------------------------------------------------------------------------------------
@@ -79,7 +80,7 @@ p_good <- curve(good, "Throughput, MiB/s (higher is better)", labels)
 p_lat  <- curve(lat,  "One-way latency, \u00b5s (lower is better)", labels)
 
 # ---- two figures: the ring alone, and the curves ---------------------------------------------------
-svg(out("mpi-rma-ring.svg"), width = 3.7, height = 3.7, family = fam, bg = "transparent")
+svg(out("mpi-rma-ring.svg"), width = 5.0, height = 3.9, family = fam, bg = "transparent")
 grid.newpage()
 print(p_ring)
 invisible(dev.off())
