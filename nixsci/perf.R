@@ -66,7 +66,7 @@ curve <- function(d, title, labels) {
     geom_text(data = end, aes(label = name), hjust = 0, nudge_x = 0.07, size = 2.8, family = fam, show.legend = FALSE) +
     scale_colour_manual(values = cols) + scale_fill_manual(values = cols) +
     scale_x_log10(breaks = payload, labels = size(payload), expand = expansion(mult = c(0.04, 0.22))) +
-    scale_y_log10(labels = \(v) format(v, big.mark = ",", scientific = FALSE, trim = TRUE)) +
+    scale_y_log10(labels = \(v) formatC(format(v, big.mark = ",", scientific = FALSE, trim = TRUE), width = 6)) +
     labs(x = NULL, y = NULL, title = title) +
     theme_minimal(base_family = fam, base_size = 8.5) +
     theme(panel.grid.minor = element_blank(), panel.grid.major = element_line(colour = rule, linewidth = 0.3),
@@ -79,10 +79,10 @@ p_good <- curve(good, "Throughput, MiB/s (higher is better)", labels)
 p_lat  <- curve(lat,  "One-way latency, \u00b5s (lower is better)", labels)
 
 # ---- page: one column, the ring above the two curves ------------------------------------------------
-W <- 6.6; H <- 9.7
+W <- 6.6; H <- 9.2
 svg(out("mpi-rma-perf.svg"), width = W, height = H, family = fam)
 grid.newpage()
-pushViewport(viewport(layout = grid.layout(4, 1, heights = unit(c(0.95, 4.5, 2.1, 2.15), "in"))))
+pushViewport(viewport(layout = grid.layout(4, 1, heights = unit(c(0.9, 4.1, 2.1, 2.1), "in"))))
 cell <- function(r) viewport(layout.pos.row = r, layout.pos.col = 1)
 say <- function(s, y, size, col, face = "plain")
   grid.text(s, x = unit(0.2, "in"), y = unit(y, "npc"), just = c("left", "top"), vp = cell(1),
