@@ -5,7 +5,7 @@ Three experiments run the benchmarks in `examples/`. `compare` runs the ring aga
 ```sh
 nix run .#compare        # one run, recorded and sealed under .nixsci/runs
 git add lab.lock         # the lock names the run by hash
-nix build .#perf         # mpi-rma-perf.svg and summary.csv
+nix build .#perf         # mpi-rma-ring.svg, mpi-rma-curves.svg and summary.csv
 nix build .#tables       # loss.csv and scale.csv
 ```
 

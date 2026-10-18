@@ -78,20 +78,21 @@ labels <- c(`ring-safe` = "ring", `p2p-send` = "MPI_Send")
 p_good <- curve(good, "Throughput, MiB/s (higher is better)", labels)
 p_lat  <- curve(lat,  "One-way latency, \u00b5s (lower is better)", labels)
 
-# ---- page: one column, the ring above the two curves ------------------------------------------------
-W <- 6.6; H <- 9.2
-svg(out("mpi-rma-perf.svg"), width = W, height = H, family = fam)
+# ---- two figures: the ring alone, and the curves ---------------------------------------------------
+svg(out("mpi-rma-ring.svg"), width = 4.6, height = 4.6, family = fam)
 grid.newpage()
-pushViewport(viewport(layout = grid.layout(4, 1, heights = unit(c(0.9, 4.1, 2.1, 2.1), "in"))))
+print(p_ring)
+invisible(dev.off())
+
+W <- 6.6; H <- 5.1
+svg(out("mpi-rma-curves.svg"), width = W, height = H, family = fam)
+grid.newpage()
+pushViewport(viewport(layout = grid.layout(3, 1, heights = unit(c(0.5, 2.3, 2.3), "in"))))
 cell <- function(r) viewport(layout.pos.row = r, layout.pos.col = 1)
-say <- function(s, y, size, col, face = "plain")
-  grid.text(s, x = unit(0.2, "in"), y = unit(y, "npc"), just = c("left", "top"), vp = cell(1),
-            gp = gpar(fontfamily = fam, fontsize = size, col = col, fontface = face))
-say(sprintf("%s \u00b7 %d threads \u00b7 %s \u00b7 median of %d", host$cpu, host$threads,
-            sub("^mpirun \\(Open MPI\\) ", "Open MPI ", host$mpi), reps), 1, 7.2, muted)
-say("ring \u00f7 MPI_Send", 0.58, 8.5, ink, "bold")
-say("outward: faster", 0.28, 7.6, muted)
-print(p_ring, vp = cell(2))
-print(p_good, vp = cell(3))
-print(p_lat,  vp = cell(4))
+grid.text(sprintf("%s \u00b7 %d threads \u00b7 %s \u00b7 median of %d", host$cpu, host$threads,
+                  sub("^mpirun \\(Open MPI\\) ", "Open MPI ", host$mpi), reps),
+          x = unit(0.2, "in"), y = unit(1, "npc") - unit(0.12, "in"), just = c("left", "top"), vp = cell(1),
+          gp = gpar(fontfamily = fam, fontsize = 7.2, col = muted))
+print(p_good, vp = cell(2))
+print(p_lat,  vp = cell(3))
 invisible(dev.off())

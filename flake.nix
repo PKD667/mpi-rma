@@ -79,7 +79,7 @@
           scale = experiment "scale" { inherit ranks; repeats = 5; messages = 20000; } "soak";
         };
         analyses = let e = experiments; in {
-          # nix build .#perf -> mpi-rma-perf.svg and summary.csv
+          # nix build .#perf -> mpi-rma-ring.svg, mpi-rma-curves.svg and summary.csv
           perf = l.analysis {
             name = "mpi-rma-perf";
             use.compare = e.compare;
