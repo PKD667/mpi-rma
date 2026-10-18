@@ -79,17 +79,16 @@ p_good <- curve(good, "Throughput, MiB/s (higher is better)", labels)
 p_lat  <- curve(lat,  "One-way latency, \u00b5s (lower is better)", labels)
 
 # ---- page ------------------------------------------------------------------------------------------
-H <- 5.4
+H <- 5.0
 svg(out("mpi-rma-perf.svg"), width = 10.4, height = H, family = fam)
 grid.newpage()
 from_top <- function(s, inches, size, col, face = "plain", x = 0.2)
   grid.text(s, x = unit(x, "in"), y = unit(H - inches, "in"), just = c("left", "top"),
             gp = gpar(fontfamily = fam, fontsize = size, col = col, fontface = face))
-from_top("mpi-rma: the ring, measured against MPI_Send", 0.18, 12, ink, "bold")
-from_top(sprintf("%s, %d threads, %s. Median of %d repeats.", host$cpu, host$threads, host$mpi, reps), 0.48, 7.6, muted)
-from_top("Ring throughput relative to MPI_Send", 0.95, 8.5, ink, "bold")
-from_top("Outward: the ring is faster. Inward: slower.", 1.17, 7.6, muted)
-pushViewport(viewport(y = 0, height = unit(H - 1.0, "in"), just = "bottom",
+from_top(sprintf("%s \u00b7 %d threads \u00b7 %s \u00b7 median of %d", host$cpu, host$threads, sub("^mpirun \\(Open MPI\\) ", "Open MPI ", host$mpi), reps), 0.16, 7.4, muted)
+from_top("ring \u00f7 MPI_Send", 0.62, 8.5, ink, "bold")
+from_top("outward: faster", 0.84, 7.6, muted)
+pushViewport(viewport(y = 0, height = unit(H - 0.7, "in"), just = "bottom",
                       layout = grid.layout(1, 2, widths = unit(c(4.6, 5.8), "in"))))
 print(p_ring, vp = viewport(layout.pos.row = 1, layout.pos.col = 1, y = 0.47, height = 0.97))
 pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 2))
