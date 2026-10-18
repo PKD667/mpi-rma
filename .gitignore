@@ -1,3 +1,6 @@
 data/*.tsv
 data/*.staging
 __pycache__/
+data/*.staging
+.nixsci/
+result
