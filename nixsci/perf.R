@@ -79,13 +79,13 @@ p_good <- curve(good, "Throughput, MiB/s (higher is better)", labels)
 p_lat  <- curve(lat,  "One-way latency, \u00b5s (lower is better)", labels)
 
 # ---- two figures: the ring alone, and the curves ---------------------------------------------------
-svg(out("mpi-rma-ring.svg"), width = 4.6, height = 4.6, family = fam)
+svg(out("mpi-rma-ring.svg"), width = 3.7, height = 3.7, family = fam, bg = "transparent")
 grid.newpage()
 print(p_ring)
 invisible(dev.off())
 
 W <- 6.6; H <- 5.1
-svg(out("mpi-rma-curves.svg"), width = W, height = H, family = fam)
+svg(out("mpi-rma-curves.svg"), width = W, height = H, family = fam, bg = "transparent")
 grid.newpage()
 pushViewport(viewport(layout = grid.layout(3, 1, heights = unit(c(0.5, 2.3, 2.3), "in"))))
 cell <- function(r) viewport(layout.pos.row = r, layout.pos.col = 1)
