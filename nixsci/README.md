@@ -11,4 +11,4 @@ nix build .#tables       # loss.csv and scale.csv
 
 The runs in `lab.lock` were taken on an AMD Ryzen 5 PRO 4650U laptop with 12 threads and Open MPI 5.0.11, at 12 ranks. Each run records its host, so the figure names the machine it came from. `BENCHMARKS.md` still holds the earlier dual-Xeon numbers, taken with `scripts/bench.sh`. Those are not reproduced here and carry no sealed record.
 
-Nix builds the example binaries and the analysis environment. A run is clean when it measured the current closure. Timing is not reproducible byte for byte, so a re-measurement gives new numbers with the same provenance. The ring wins below 8 KiB on this machine and loses above it, and one node says nothing about a network.
+Nix builds the example binaries and the analysis environment. A run is clean when it measured the current closure. Timing is not reproducible byte for byte, so a re-measurement gives new numbers with the same provenance. On this machine the ring wins at 512 B and 4 KiB, ties at 64 B and loses at 32 KiB and 256 KiB. One node says nothing about a network.
