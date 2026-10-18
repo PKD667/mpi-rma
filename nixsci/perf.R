@@ -79,19 +79,21 @@ p_good <- curve(good, "Throughput, MiB/s (higher is better)", labels)
 p_lat  <- curve(lat,  "One-way latency, \u00b5s (lower is better)", labels)
 
 # ---- page ------------------------------------------------------------------------------------------
-svg(out("mpi-rma-perf.svg"), width = 10.4, height = 4.9, family = fam)
+H <- 5.4
+svg(out("mpi-rma-perf.svg"), width = 10.4, height = H, family = fam)
 grid.newpage()
-text <- function(s, y, size, col, face = "plain")
-  grid.text(s, x = unit(0.2, "in"), y = unit(y, "npc") - unit(0.2, "in"), just = c("left", "top"),
+from_top <- function(s, inches, size, col, face = "plain", x = 0.2)
+  grid.text(s, x = unit(x, "in"), y = unit(H - inches, "in"), just = c("left", "top"),
             gp = gpar(fontfamily = fam, fontsize = size, col = col, fontface = face))
-text("mpi-rma: the ring, measured against MPI_Send", 1, 12, ink, "bold")
-text(sprintf("%s, %d threads, %s. Median of %d repeats.", host$cpu, host$threads, host$mpi, reps), 0.93, 7.6, muted)
-pushViewport(viewport(layout = grid.layout(1, 2, widths = unit(c(4.6, 5.8), "in")), y = 0.46, height = 0.82))
-print(p_ring, vp = viewport(layout.pos.row = 1, layout.pos.col = 1))
+from_top("mpi-rma: the ring, measured against MPI_Send", 0.18, 12, ink, "bold")
+from_top(sprintf("%s, %d threads, %s. Median of %d repeats.", host$cpu, host$threads, host$mpi, reps), 0.48, 7.6, muted)
+from_top("Ring throughput relative to MPI_Send", 0.95, 8.5, ink, "bold")
+from_top("Outward: the ring is faster. Inward: slower.", 1.17, 7.6, muted)
+pushViewport(viewport(y = 0, height = unit(H - 1.0, "in"), just = "bottom",
+                      layout = grid.layout(1, 2, widths = unit(c(4.6, 5.8), "in"))))
+print(p_ring, vp = viewport(layout.pos.row = 1, layout.pos.col = 1, y = 0.46, height = 0.9))
 pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 2))
-print(p_good, vp = viewport(y = 0.75, height = 0.5))
-print(p_lat,  vp = viewport(y = 0.25, height = 0.5))
+print(p_good, vp = viewport(y = 0.76, height = 0.48))
+print(p_lat,  vp = viewport(y = 0.26, height = 0.48))
 popViewport(2)
-grid.text("Ring slots show ring / MPI_Send throughput. Outward means the ring is faster.", x = unit(0.2, "in"), y = unit(0.14, "in"),
-          just = "left", gp = gpar(fontfamily = fam, fontsize = 7.6, col = muted))
 invisible(dev.off())
