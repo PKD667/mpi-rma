@@ -53,7 +53,7 @@ p_ring <- ggplot() +
   annotate("text", x = 0, y = R0 + 0.09, label = "MPI_Send", family = fam, size = 2.7, colour = muted) +
   scale_fill_manual(values = c(`TRUE` = accent, `FALSE` = slow), guide = "none") +
   scale_colour_manual(values = c(`TRUE` = accent, `FALSE` = slow), guide = "none") +
-  coord_fixed(xlim = c(-1.7, 1.7), ylim = c(-1.7, 1.7), expand = FALSE, clip = "off") +
+  coord_fixed(xlim = c(-1.95, 1.95), ylim = c(-1.95, 1.95), expand = FALSE, clip = "off") +
   theme_void() + theme(plot.background = element_blank())
 
 # ---- curves ----------------------------------------------------------------------------------------
@@ -91,7 +91,7 @@ from_top("Ring throughput relative to MPI_Send", 0.95, 8.5, ink, "bold")
 from_top("Outward: the ring is faster. Inward: slower.", 1.17, 7.6, muted)
 pushViewport(viewport(y = 0, height = unit(H - 1.0, "in"), just = "bottom",
                       layout = grid.layout(1, 2, widths = unit(c(4.6, 5.8), "in"))))
-print(p_ring, vp = viewport(layout.pos.row = 1, layout.pos.col = 1, y = 0.46, height = 0.9))
+print(p_ring, vp = viewport(layout.pos.row = 1, layout.pos.col = 1, y = 0.47, height = 0.97))
 pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 2))
 print(p_good, vp = viewport(y = 0.76, height = 0.48))
 print(p_lat,  vp = viewport(y = 0.26, height = 0.48))
