@@ -78,21 +78,20 @@ labels <- c(`ring-safe` = "ring", `p2p-send` = "MPI_Send")
 p_good <- curve(good, "Throughput, MiB/s (higher is better)", labels)
 p_lat  <- curve(lat,  "One-way latency, \u00b5s (lower is better)", labels)
 
-# ---- page ------------------------------------------------------------------------------------------
-H <- 5.0
-svg(out("mpi-rma-perf.svg"), width = 10.4, height = H, family = fam)
+# ---- page: one column, the ring above the two curves ------------------------------------------------
+W <- 6.6; H <- 9.7
+svg(out("mpi-rma-perf.svg"), width = W, height = H, family = fam)
 grid.newpage()
-from_top <- function(s, inches, size, col, face = "plain", x = 0.2)
-  grid.text(s, x = unit(x, "in"), y = unit(H - inches, "in"), just = c("left", "top"),
+pushViewport(viewport(layout = grid.layout(4, 1, heights = unit(c(0.95, 4.5, 2.1, 2.15), "in"))))
+cell <- function(r) viewport(layout.pos.row = r, layout.pos.col = 1)
+say <- function(s, y, size, col, face = "plain")
+  grid.text(s, x = unit(0.2, "in"), y = unit(y, "npc"), just = c("left", "top"), vp = cell(1),
             gp = gpar(fontfamily = fam, fontsize = size, col = col, fontface = face))
-from_top(sprintf("%s \u00b7 %d threads \u00b7 %s \u00b7 median of %d", host$cpu, host$threads, sub("^mpirun \\(Open MPI\\) ", "Open MPI ", host$mpi), reps), 0.16, 7.4, muted)
-from_top("ring \u00f7 MPI_Send", 0.62, 8.5, ink, "bold")
-from_top("outward: faster", 0.84, 7.6, muted)
-pushViewport(viewport(y = 0, height = unit(H - 0.7, "in"), just = "bottom",
-                      layout = grid.layout(1, 2, widths = unit(c(4.6, 5.8), "in"))))
-print(p_ring, vp = viewport(layout.pos.row = 1, layout.pos.col = 1, y = 0.47, height = 0.97))
-pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 2))
-print(p_good, vp = viewport(y = 0.76, height = 0.48))
-print(p_lat,  vp = viewport(y = 0.26, height = 0.48))
-popViewport(2)
+say(sprintf("%s \u00b7 %d threads \u00b7 %s \u00b7 median of %d", host$cpu, host$threads,
+            sub("^mpirun \\(Open MPI\\) ", "Open MPI ", host$mpi), reps), 1, 7.2, muted)
+say("ring \u00f7 MPI_Send", 0.58, 8.5, ink, "bold")
+say("outward: faster", 0.28, 7.6, muted)
+print(p_ring, vp = cell(2))
+print(p_good, vp = cell(3))
+print(p_lat,  vp = cell(4))
 invisible(dev.off())
