@@ -1,0 +1,69 @@
+{
+  "format": "2.0",
+  "runs": {
+    "mpi-rma-compare": [
+      {
+        "facts": {
+          "closure": "/nix/store/pfzqkn7m1xqidps6fak82m614x9hlnww-experiment-mpi-rma-compare",
+          "format": "2.0",
+          "input_id": "50189e36753f3206805ffb8dc521177fd783a68755b5629b38b5dbcb04c12662",
+          "params": {
+            "depth": 32,
+            "messages": 20000,
+            "ranks": 12,
+            "repeats": 11
+          },
+          "replicate": 1,
+          "run": "mpi-rma-compare-50189e36753f-r1",
+          "seed": null,
+          "state": "ok"
+        },
+        "name": "mpi-rma-compare-50189e36753f-r1",
+        "path": "/nix/store/h0qfkhd3hnmk3rl12sw6nrk3qy3fy6rw-mpi-rma-compare-50189e36753f-r1",
+        "sha256": "sha256-09fpQ5xzEZGiQ/Q7/AJHHnYODX4vMLbMGghX6V6hNYM="
+      }
+    ],
+    "mpi-rma-loss": [
+      {
+        "facts": {
+          "closure": "/nix/store/dvbb248bljbp1ni0015hfa3y2jrpxcz6-experiment-mpi-rma-loss",
+          "format": "2.0",
+          "input_id": "29b7f3f510309a07954677000b9c578ee4b73aa456ecf4c694d4bfc5a0a75ca7",
+          "params": {
+            "messages": 20000,
+            "ranks": 12,
+            "repeats": 5
+          },
+          "replicate": 1,
+          "run": "mpi-rma-loss-29b7f3f51030-r1",
+          "seed": null,
+          "state": "ok"
+        },
+        "name": "mpi-rma-loss-29b7f3f51030-r1",
+        "path": "/nix/store/8lyc8da7dp91javyz6yan8hqaym1vgz2-mpi-rma-loss-29b7f3f51030-r1",
+        "sha256": "sha256-9xkWs4RIAC5RLS/0QR84jJbO3p6g3vTUA4Q4TYfh25w="
+      }
+    ],
+    "mpi-rma-scale": [
+      {
+        "facts": {
+          "closure": "/nix/store/r6z90mysx8zc81giffiafl10bjx7f905-experiment-mpi-rma-scale",
+          "format": "2.0",
+          "input_id": "ae36b120647419430baea13fe62e5e6bdbc2433db271bc14433bee44a6411f19",
+          "params": {
+            "messages": 20000,
+            "ranks": 12,
+            "repeats": 5
+          },
+          "replicate": 1,
+          "run": "mpi-rma-scale-ae36b1206474-r1",
+          "seed": null,
+          "state": "ok"
+        },
+        "name": "mpi-rma-scale-ae36b1206474-r1",
+        "path": "/nix/store/wmyapfs1qxs8c169860l0xd1kz6hax24-mpi-rma-scale-ae36b1206474-r1",
+        "sha256": "sha256-GxGbzlnXzS0b0Gcl+qENP1NRGISX6PXK53avYfzq8iQ="
+      }
+    ]
+  }
+}

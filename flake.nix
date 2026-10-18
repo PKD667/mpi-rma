@@ -65,6 +65,9 @@
       # default here is one rank per hardware thread of a 12-thread laptop, and the run's machine.json
       # records what it actually was.
       ranks = 12;
+
+      # A fontconfig file naming only the pinned Hack font, so the figure's glyphs do not depend on the build machine.
+      fontsconf = pkgs.makeFontsConf { fontDirectories = [ pkgs.hack-font ]; };
     in
     {
       packages.${system} = { inherit examples; };
@@ -75,6 +78,27 @@
           loss = experiment "loss" { inherit ranks; repeats = 5; messages = 20000; } "soak";
           scale = experiment "scale" { inherit ranks; repeats = 5; messages = 20000; } "soak";
         };
+      };
+
+      lab.${system}.analyses = let e = self.lab.${system}.experiments; in {
+        # nix build .#perf -> mpi-rma-perf.svg and summary.csv
+        perf = l.analysis {
+          name = "mpi-rma-perf";
+          use.compare = e.compare;
+          pipelines.perf.script = pkgs.replaceVars ./nixsci/perf.R { inherit fontsconf; };
+        };
+        # nix build .#tables -> loss.csv and scale.csv
+        tables = l.analysis {
+          name = "mpi-rma-tables";
+          use = { inherit (e) loss scale; };
+          pipelines.tables.script = ./nixsci/tables.R;
+        };
+      };
+
+      # Analyses read lab.lock, so they are legacyPackages: a flake check does not need the runs present.
+      legacyPackages.${system} = {
+        perf = self.lab.${system}.analyses.perf;
+        tables = self.lab.${system}.analyses.tables;
       };
 
       apps.${system} = lib.mapAttrs (_: e: e.run) self.lab.${system}.experiments;
